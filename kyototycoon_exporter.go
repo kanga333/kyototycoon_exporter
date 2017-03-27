@@ -63,7 +63,7 @@ func NewExporter(opts kyototycoonOpts) (*Exporter, error) {
 	// Init our exporter.
 	return &Exporter{
 		client: client,
-		url:    opts.uri,
+		url:    uri,
 	}, nil
 }
 
@@ -77,22 +77,37 @@ func (e *Exporter) Describe(ch chan<- *prometheus.Desc) {
 // as Prometheus metrics. It implements prometheus.Collector.
 func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 	// How many peers are in the Consul cluster?
-	resp, err := e.client.Get(e.url)
+	body, err := e.getKtReport()
 	if err != nil {
 		ch <- prometheus.MustNewConstMetric(
 			up, prometheus.GaugeValue, 0,
 		)
-		log.Errorf("Can't query kt: %v", err)
+		log.Errorf("Access to /rpc/report failed: %v", err)
 		return
 	}
-	defer resp.Body.Close()
-
 	// We'll use peers to decide that we're up.
 	ch <- prometheus.MustNewConstMetric(
 		up, prometheus.GaugeValue, 1,
 	)
-	byteArray, _ := ioutil.ReadAll(resp.Body)
-	log.Infoln("get kt statsu", byteArray)
+	log.Infoln("get body", body)
+
+}
+
+func (e *Exporter) getKtReport() (string, error) {
+	resp, err := e.client.Get(e.url)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+	if resp.StatusCode != 200 {
+		return "", fmt.Errorf("err Status %s (%d): %s", resp.Status, resp.StatusCode, body)
+	}
+	return string(body), nil
 }
 
 func init() {
@@ -108,7 +123,7 @@ func main() {
 		opts = kyototycoonOpts{}
 	)
 	flag.BoolVar(showVersion, "v", false, "Print version information.")
-	flag.StringVar(&opts.uri, "kt.server", "http://localhost:1798", "HTTP API address of a KyotoTycoon server.")
+	flag.StringVar(&opts.uri, "kt.server", "http://localhost:1978", "HTTP API address of a KyotoTycoon server.")
 	flag.DurationVar(&opts.timeout, "kt.timeout", 200*time.Millisecond, "Timeout on HTTP requests to kyototycoon.")
 
 	flag.Parse()
@@ -125,7 +140,7 @@ func main() {
 	if err != nil {
 		log.Fatalln(err)
 	}
-	println(exporter)
+	prometheus.MustRegister(exporter)
 	http.Handle(*metricsPath, prometheus.Handler())
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(`<html>
