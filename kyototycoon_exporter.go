@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"strconv"
+
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/log"
 	"github.com/prometheus/common/version"
@@ -23,6 +25,12 @@ var (
 	up = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "up"),
 		"Was the last query of kt successful.",
+		nil, nil,
+	)
+
+	getRequests = prometheus.NewDesc(
+		prometheus.BuildFQName(namespace, "", "get_requests"),
+		"Was the total number of kt get requests.cnt_get is original.",
 		nil, nil,
 	)
 )
@@ -71,6 +79,7 @@ func NewExporter(opts kyototycoonOpts) (*Exporter, error) {
 // It implements prometheus.Collector.
 func (e *Exporter) Describe(ch chan<- *prometheus.Desc) {
 	ch <- up
+	ch <- getRequests
 }
 
 // Collect fetches the stats from configured KyotoTycoon location and delivers them
@@ -89,7 +98,24 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 	ch <- prometheus.MustNewConstMetric(
 		up, prometheus.GaugeValue, 1,
 	)
-	log.Infoln("get body", body)
+
+	lines := strings.Split(body, "\n")
+	for _, line := range lines {
+		metrics := strings.SplitN(line, "\t", 2)
+
+		switch metrics[0] {
+		case "cnt_get":
+			val, err := strconv.ParseFloat(metrics[1], 64)
+			if err != nil {
+				log.Errorf("Parsing of cnt_get value %v to Int is failed: %v", metrics[1], err)
+				return
+			}
+			ch <- prometheus.MustNewConstMetric(
+				getRequests, prometheus.CounterValue, val,
+			)
+		}
+
+	}
 
 }
 
