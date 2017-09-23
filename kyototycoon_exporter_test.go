@@ -77,5 +77,5 @@ func checkKtStatus(t *testing.T, report string, metricCount int) {
 }
 
 func TestKTStatus(t *testing.T) {
-	checkKtStatus(t, ktReport, 14)
+	checkKtStatus(t, ktReport, 13)
 }
