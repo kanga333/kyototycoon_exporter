@@ -31,7 +31,7 @@ Usage of ./kyototycoon_exporter:
   -version
         Print version information.
   -web.listen-address string
-        Address to listen on for web interface and telemetry. (default ":9107")
+        Address to listen on for web interface and telemetry. (default ":9306")
   -web.telemetry-path string
         Path under which to expose metrics. (default "/metrics")
 ```
